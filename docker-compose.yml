@@ -1,0 +1,56 @@
+version: "3.9"
+
+services:
+  database:
+    image: postgres:15-alpine
+    container_name: kupipodariday-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: ${POSTGRES_PGDATA}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks: [appnet]
+
+  backend:
+    build:
+      context: ./backend
+    container_name: kupipodariday-backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_HOST: database
+      JWT_KEY: ${JWT_SECRET}
+    depends_on:
+      database:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${HOST_BACKEND_PORT:-4000}:${CONTAINER_BACKEND_PORT:-3001}"
+    networks: [appnet]
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: kupipodariday-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:${HOST_FRONTEND_PORT:-8081}:80"
+    networks: [appnet]
+
+volumes:
+  postgres_data:
+
+networks:
+  appnet:
+    driver: bridge
